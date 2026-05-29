@@ -103,7 +103,8 @@ const logoWrap: React.CSSProperties = {
 
 const brand: React.CSSProperties = {
   display: "inline-block",
-  borderRadius: "12px",
+  borderRadius: "30px",
+  width: "100px",
   height: "auto",
 };
 
