@@ -1,10 +1,10 @@
-import './Hero.css'
-
 export function Hero() {
   return (
     <section className="hero" id="top">
       <div className="container hero__inner">
-        <span className="eyebrow">A trusted community of mentors and mentees</span>
+        <span className="eyebrow">
+          A trusted community of mentors and mentees
+        </span>
 
         <h1 className="hero__title">
           Build <em>lasting</em> professional
@@ -20,7 +20,9 @@ export function Hero() {
         <div className="hero__actions">
           <a href="#early-access" className="btn btn--primary">
             Get early access
-            <span className="arrow" aria-hidden="true">→</span>
+            <span className="arrow" aria-hidden="true">
+              →
+            </span>
           </a>
           <a href="#features" className="btn btn--ghost">
             See how it works
@@ -28,5 +30,5 @@ export function Hero() {
         </div>
       </div>
     </section>
-  )
+  );
 }
