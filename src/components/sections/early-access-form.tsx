@@ -67,7 +67,7 @@ export function EarlyAccessForm() {
           <input
             id="early-firstName"
             className="early__input"
-            placeholder="Ada"
+            placeholder="John"
             autoComplete="given-name"
             aria-invalid={Boolean(errors.firstName)}
             {...register("firstName")}

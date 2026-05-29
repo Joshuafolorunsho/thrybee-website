@@ -73,7 +73,7 @@ export function WelcomeEmail({
 }
 
 WelcomeEmail.PreviewProps = {
-  firstName: "Ada",
+  firstName: "John",
   unsubscribeUrl: "https://thrybee.com/api/early-access/unsubscribe?token=demo",
   logoUrl: "https://thrybee.com/logo.jpg",
 } satisfies WelcomeEmailProps;

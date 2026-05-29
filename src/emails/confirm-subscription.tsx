@@ -73,7 +73,7 @@ export function ConfirmSubscriptionEmail({
 }
 
 ConfirmSubscriptionEmail.PreviewProps = {
-  firstName: "Ada",
+  firstName: "John",
   confirmUrl: "https://thrybee.com/api/early-access/confirm?token=demo",
   unsubscribeUrl: "https://thrybee.com/api/early-access/unsubscribe?token=demo",
   logoUrl: "https://thrybee.com/logo.jpg",
