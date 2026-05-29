@@ -266,7 +266,7 @@ p {
 }
 
 .hero__title {
-  font-size: clamp(44px, 7vw, 92px);
+  font-size: clamp(44px, 5.5vw, 82px);
   font-weight: 500;
 }
 

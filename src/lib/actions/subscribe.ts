@@ -1,14 +1,10 @@
 "use server";
 
-import crypto from "node:crypto";
-
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { env } from "../../../env";
-import { db } from "@/db";
-import { subscribers } from "@/db/schema";
 import { ConfirmSubscriptionEmail } from "@/emails/confirm-subscription";
+import { callWaitlist } from "@/lib/convex";
 import { resend } from "@/lib/resend";
 
 const schema = z.object({
@@ -31,16 +27,14 @@ export type SubscribeResult = {
   message: string;
 };
 
-const CONFIRM_TOKEN_TTL_DAYS = 7;
-
-function newConfirmationToken() {
-  return {
-    token: crypto.randomBytes(32).toString("base64url"),
-    expiresAt: new Date(
-      Date.now() + CONFIRM_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
-    ),
-  };
-}
+type ConvexSubscribeResult =
+  | { status: "already_confirmed" }
+  | {
+      status: "new" | "resent";
+      firstName: string;
+      confirmationToken: string;
+      unsubscribeToken: string;
+    };
 
 function buildUrls(token: string, unsubscribeToken: string) {
   const base = env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
@@ -90,67 +84,30 @@ export async function subscribe(
   }
 
   try {
-    const existing = await db.query.subscribers.findFirst({
-      where: eq(subscribers.email, email),
+    const result = await callWaitlist<ConvexSubscribeResult>("subscribe", {
+      email,
+      firstName,
+      source: source ?? "landing_early_access",
     });
 
-    if (existing?.status === "confirmed") {
+    if (result.status === "already_confirmed") {
       return {
         status: "already_subscribed",
         message: "You're already on the list.",
       };
     }
 
-    const { token, expiresAt } = newConfirmationToken();
-
-    if (!existing) {
-      const inserted = await db
-        .insert(subscribers)
-        .values({
-          email,
-          firstName,
-          status: "pending",
-          confirmationToken: token,
-          confirmationTokenExpiresAt: expiresAt,
-          source: source ?? "landing_early_access",
-        })
-        .returning({ unsubscribeToken: subscribers.unsubscribeToken });
-
-      const { confirmUrl, unsubscribeUrl, logoUrl } = buildUrls(
-        token,
-        inserted[0].unsubscribeToken,
-      );
-      await sendConfirmEmail({
-        to: email,
-        firstName,
-        confirmUrl,
-        unsubscribeUrl,
-        logoUrl,
-      });
-    } else {
-      await db
-        .update(subscribers)
-        .set({
-          firstName,
-          status: "pending",
-          confirmationToken: token,
-          confirmationTokenExpiresAt: expiresAt,
-          unsubscribedAt: null,
-        })
-        .where(eq(subscribers.id, existing.id));
-
-      const { confirmUrl, unsubscribeUrl, logoUrl } = buildUrls(
-        token,
-        existing.unsubscribeToken,
-      );
-      await sendConfirmEmail({
-        to: email,
-        firstName,
-        confirmUrl,
-        unsubscribeUrl,
-        logoUrl,
-      });
-    }
+    const { confirmUrl, unsubscribeUrl, logoUrl } = buildUrls(
+      result.confirmationToken,
+      result.unsubscribeToken,
+    );
+    await sendConfirmEmail({
+      to: email,
+      firstName: result.firstName,
+      confirmUrl,
+      unsubscribeUrl,
+      logoUrl,
+    });
 
     return {
       status: "confirm_sent",
