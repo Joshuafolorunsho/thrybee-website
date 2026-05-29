@@ -1,9 +1,11 @@
-import { eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { env } from "../../../../../env";
-import { db } from "@/db";
-import { subscribers } from "@/db/schema";
+import { callWaitlist } from "@/lib/convex";
+
+type UnsubscribeResult = {
+  status: "unsubscribed" | "already_unsubscribed" | "unknown";
+};
 
 function redirect(path: string, message?: string) {
   const base = env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
@@ -17,24 +19,12 @@ export async function GET(request: NextRequest) {
   if (!token) return redirect("/early-access/unsubscribed", "invalid");
 
   try {
-    const subscriber = await db.query.subscribers.findFirst({
-      where: eq(subscribers.unsubscribeToken, token),
+    const result = await callWaitlist<UnsubscribeResult>("unsubscribe", {
+      token,
     });
-
-    if (!subscriber) return redirect("/early-access/unsubscribed", "unknown");
-
-    if (subscriber.status !== "unsubscribed") {
-      await db
-        .update(subscribers)
-        .set({
-          status: "unsubscribed",
-          unsubscribedAt: new Date(),
-          confirmationToken: null,
-          confirmationTokenExpiresAt: null,
-        })
-        .where(eq(subscribers.id, subscriber.id));
+    if (result.status === "unknown") {
+      return redirect("/early-access/unsubscribed", "unknown");
     }
-
     return redirect("/early-access/unsubscribed");
   } catch (error) {
     console.error("[unsubscribe] failed", error);

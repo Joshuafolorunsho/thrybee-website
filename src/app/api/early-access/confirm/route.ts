@@ -1,11 +1,25 @@
-import { and, eq, gt } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { env } from "../../../../../env";
-import { db } from "@/db";
-import { subscribers } from "@/db/schema";
 import { WelcomeEmail } from "@/emails/welcome";
+import { callWaitlist } from "@/lib/convex";
 import { resend } from "@/lib/resend";
+
+type ConfirmResult =
+  | { status: "invalid" }
+  | { status: "expired" }
+  | {
+      status: "confirmed";
+      email: string;
+      firstName: string;
+      unsubscribeToken: string;
+    }
+  | {
+      status: "already_confirmed";
+      email: string;
+      firstName: string;
+      unsubscribeToken: string;
+    };
 
 function redirect(path: string, message?: string) {
   const base = env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
@@ -19,47 +33,35 @@ export async function GET(request: NextRequest) {
   if (!token) return redirect("/early-access/confirmed", "invalid");
 
   try {
-    const now = new Date();
-    const subscriber = await db.query.subscribers.findFirst({
-      where: and(
-        eq(subscribers.confirmationToken, token),
-        gt(subscribers.confirmationTokenExpiresAt, now),
-      ),
-    });
+    const result = await callWaitlist<ConfirmResult>("confirm", { token });
 
-    if (!subscriber) return redirect("/early-access/confirmed", "expired");
-
-    if (subscriber.status === "confirmed") {
+    if (result.status === "invalid") {
+      return redirect("/early-access/confirmed", "invalid");
+    }
+    if (result.status === "expired") {
+      return redirect("/early-access/confirmed", "expired");
+    }
+    if (result.status === "already_confirmed") {
       return redirect("/early-access/confirmed");
     }
 
-    await db
-      .update(subscribers)
-      .set({
-        status: "confirmed",
-        confirmedAt: now,
-        confirmationToken: null,
-        confirmationTokenExpiresAt: null,
-      })
-      .where(eq(subscribers.id, subscriber.id));
-
     const base = env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
-    const unsubscribeUrl = `${base}/api/early-access/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribeToken)}`;
+    const unsubscribeUrl = `${base}/api/early-access/unsubscribe?token=${encodeURIComponent(result.unsubscribeToken)}`;
     const logoUrl = `${base}/logo.jpg`;
 
-    const result = await resend.emails.send({
+    const sendResult = await resend.emails.send({
       from: env.RESEND_FROM_EMAIL,
-      to: subscriber.email,
+      to: result.email,
       subject: "Welcome to Thrybee early access",
       react: WelcomeEmail({
-        firstName: subscriber.firstName,
+        firstName: result.firstName,
         unsubscribeUrl,
         logoUrl,
       }),
     });
 
-    if (result.error) {
-      console.error("[confirm] resend send_welcome failed", result.error);
+    if (sendResult.error) {
+      console.error("[confirm] resend send_welcome failed", sendResult.error);
     }
 
     return redirect("/early-access/confirmed");
